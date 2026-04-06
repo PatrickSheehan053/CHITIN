@@ -1,0 +1,56 @@
+# ============================================================================
+#  CHITIN — Causal Heuristics Isolating Transcriptomic Intervention Noise
+#  Configuration File  ·  Companion module to SPORE
+# ============================================================================
+
+# ── Paths ───────────────────────────────────────────────────────────────────
+paths:
+  project_root: "/scratch/patrick.sheehan/MYCELIUM/CHITIN"
+  input_dir: "../SPORE_heavy/processed"        # SPORE Phase 8 metacell outputs
+  output_dir: "output"
+  figures_dir: "figures"
+  log_dir: "logs"
+
+  # Expected input filenames (SPORE Phase 8 metacell outputs)
+  train_file: "replogle_2022_k562_train_metacell.h5ad"
+  val_file: "replogle_2022_k562_val_metacell.h5ad"
+  test_file: "replogle_2022_k562_test_metacell.h5ad"
+
+# ── Dataset Metadata ────────────────────────────────────────────────────────
+dataset:
+  name: "Replogle_2022_K562_GWPS"
+  perturbation_col: "gene"             # .obs column with perturbation labels
+  control_label: "non-targeting"       # label for unperturbed control metacells
+
+# ── KNN Subtraction Parameters ──────────────────────────────────────────────
+knn:
+  n_pcs: 50                            # PCA components for latent space
+  k: 20                                # number of nearest control neighbors
+  distance_metric: "euclidean"         # euclidean | cosine
+  svd_solver: "randomized"             # randomized (fast) | arpack (exact)
+
+# ── Diagnostics ─────────────────────────────────────────────────────────────
+diagnostics:
+  # k-sensitivity sweep: compute neighborhood variance across k values
+  k_sweep: true
+  k_sweep_range: [5, 10, 15, 20, 30, 50, 75, 100]
+
+  # Systema centroid diagnostics (evaluation only — NOT used in transform)
+  compute_systema_cosines: true
+
+# ── Output ──────────────────────────────────────────────────────────────────
+output:
+  suffix: "_chitin"                    # appended to output filenames
+  save_pre_chitin_backup: false        # save a copy of the input before transform
+  preserve_systema_centroids: true     # keep C_ctrl and O_pert in .uns
+
+# ── Plotting ────────────────────────────────────────────────────────────────
+plotting:
+  style: "dark"                        # dark | light
+  dpi: 200
+  save_figures: true
+  figure_format: "png"
+
+# ── Runtime ─────────────────────────────────────────────────────────────────
+runtime:
+  n_jobs: 8
