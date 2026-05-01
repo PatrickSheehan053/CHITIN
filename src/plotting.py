@@ -511,7 +511,7 @@ def plot_expression_shift_comparison(adata_pre, adata_post,
         if gene not in adata.var_names:
             continue
 
-        import scipy.sparse as sp as _sp
+        import scipy.sparse as _sp
         gidx = list(adata.var_names).index(gene)
         X = adata.X
         if _sp.issparse(X):
