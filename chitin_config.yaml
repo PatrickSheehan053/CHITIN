@@ -1,55 +1,114 @@
 # ============================================================================
-#  CHITIN — Causal Heuristics Isolating Transcriptomic Intervention Noise
-#  Configuration File  ·  Companion module to SPORE (can be run standalone)
+#  CHITIN v2 — Configuration File
+#  Causal Heuristics Isolating Transcriptomic Intervention Noise
 # ============================================================================
 
 # ── Paths ───────────────────────────────────────────────────────────────────
 paths:
-  project_root: 
-  input_dir: 
-  output_dir: "output"
-  figures_dir: "figures"
-  log_dir: "logs"
+  project_root:  ""
+  input_dir:     ""
+  output_dir:    "output"
+  figures_dir:   "figures"
+  log_dir:       "logs"
 
-  # Expected input filenames (SPORE Phase 8 metacell outputs)
-  train_file: "replogle_2022_k562_train_metacell.h5ad"   # example dataset split
-  val_file: "replogle_2022_k562_val_metacell.h5ad"       # example dataset split
-  test_file: "replogle_2022_k562_test_metacell.h5ad"     # example dataset split
+  train_file: "replogle_2022_k562_train_metacell.h5ad" # Example file path names
+  val_file:   "replogle_2022_k562_val_metacell.h5ad"   # replace these with your
+  test_file:  "replogle_2022_k562_test_metacell.h5ad"  # own .h5ad file names 
 
 # ── Dataset Metadata ────────────────────────────────────────────────────────
 dataset:
-  name: "Replogle_2022_K562_GWPS"
-  perturbation_col: "gene"             # .obs column with perturbation labels
-  control_label: "non-targeting"       # label for unperturbed control metacells
+  name:              "Replogle_2022_K562_GWPS" 
+  perturbation_col:  "gene"
+  control_label:     "non-targeting"
 
-# ── KNN Subtraction Parameters ──────────────────────────────────────────────
+# ── KNN Parameters (used when auto_calibrate: false, or as fallback) ────────
 knn:
-  n_pcs: 50                            # PCA components for latent space
-  k: 20                                # number of nearest control neighbors
-  distance_metric: "euclidean"         # euclidean | cosine
-  svd_solver: "randomized"             # randomized (fast) | arpack (exact)
+  n_pcs:           50          # number of PCA components for latent space
+  k:               20          # number of nearest control neighbors
+  distance_metric: "euclidean" # euclidean | cosine
+  svd_solver:      "randomized"  # randomized (fast) | arpack (exact)
+                                 # svd_solver is NOT swept — it is an
+                                 # implementation detail, not a tuning param.
+
+# ── Auto-Calibration (Pareto sweep) ─────────────────────────────────────────
+# When auto_calibrate: true, CHITIN sweeps the grids below and selects the
+# (k, n_pcs, distance_metric) combination on the Pareto front that maximises
+# rank disruption subject to signal stability constraints.
+# The knn: block above is used only as a fallback when auto_calibrate: false.
+calibration:
+  auto_calibrate: true
+
+  # k sweep grid — values to test. Will be clipped to n_controls - 1.
+  k_grid:    [1, 3, 5, 10, 15, 20, 30, 50]
+
+  # n_pcs sweep grid — values to test.
+  n_pcs_grid: [5, 10, 15, 20, 30, 50]
+
+  # Distance metric grid — both are always tested when auto_calibrate: true.
+  metric_grid: ["euclidean", "cosine"]
+
+  # Pareto selection: require signal_stability >= this fraction of the
+  # maximum stability on the Pareto front before maximising rank disruption.
+  # Range: 0.0 (ignore stability) to 1.0 (require maximum stability).
+  min_stability_fraction: 0.50
+
+# ── Correction Mode ──────────────────────────────────────────────────────────
+# Controls which correction engine CHITIN uses during transform().
+#
+#   knn             : Original CHITIN v1 KNN-based localized subtraction.
+#                     Best for heterogeneous cell lines (K562, RPE1) where
+#                     control manifold coverage is good.
+#
+#   pc_decomposition: Project out PC axes that encode systematic variation.
+#                     Best for homogeneous cell lines (iPSC, hESC) where
+#                     KNN localisation fails due to sparse control coverage.
+#                     Does not require local control neighbours.
+#
+#   hybrid          : Apply PC decomposition first to remove systematic
+#                     variation axes, then apply KNN on the residuals.
+#                     Most aggressive correction — use when both systematic
+#                     variation is high AND control coverage is reasonable.
+correction:
+  mode: "knn"   # knn | pc_decomposition | hybrid
+
+  # Threshold for classifying a PC as systematic (cosine similarity to V).
+  # A PC is subtracted if abs(cosine(PC_loading, V)) > this value.
+  # Lower threshold → more PCs removed → more aggressive correction.
+  # Typical range: 0.20 (aggressive) to 0.50 (conservative).
+  pc_systematic_threshold: 0.30
 
 # ── Diagnostics ─────────────────────────────────────────────────────────────
 diagnostics:
-  # k-sensitivity sweep: compute neighborhood variance across k values
+  # k-sensitivity sweep (diagnostic plot only — does NOT affect parameters
+  # when auto_calibrate: true, since the Pareto sweep handles selection).
   k_sweep: true
   k_sweep_range: [5, 10, 15, 20, 30, 50, 75, 100]
 
   # Systema centroid diagnostics (evaluation only — NOT used in transform)
   compute_systema_cosines: true
 
+  # PC decomposition report — only relevant when correction.mode includes
+  # 'pc_decomposition' or 'hybrid'
+  pc_decomposition_report: true
+
+  # Number of top gene loadings to report per PC in the decomposition report
+  pc_top_genes: 10
+
 # ── Output ──────────────────────────────────────────────────────────────────
 output:
-  suffix: "_chitin"                    # appended to output filenames
-  save_pre_chitin_backup: false        # save a copy of the input before transform
-  preserve_systema_centroids: true     # keep C_ctrl and O_pert in .uns
+  suffix:                   "_chitin"
+  save_pre_chitin_backup:   false
+  preserve_systema_centroids: true
+
+  # Save Pareto sweep results as CSV alongside CHITIN outputs
+  save_sweep_results: true
 
 # ── Plotting ────────────────────────────────────────────────────────────────
 plotting:
-  style: "dark"                        # dark | light
-  dpi: 200
-  save_figures: true
-  figure_format: "png"
+  style:          "dark"   # dark | light
+  dpi:            200
+  save_figures:   true
+  figure_format:  "png"
 
 # ── Runtime ─────────────────────────────────────────────────────────────────
 runtime:
